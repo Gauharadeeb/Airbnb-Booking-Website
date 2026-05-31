@@ -4,6 +4,7 @@ import { Perks } from "../component/Perks";
 import { PhotoUploader } from "../component/PhotoUploader";
 import axios from "axios";
 import AccountNav from "../component/AccountNav";
+import { notify } from "../utils/notifications";
 
 export const PlacesForm = () => {
 
@@ -51,17 +52,22 @@ export const PlacesForm = () => {
             perks, extraInfo, checkInTime,
             checkOutTime, maxGuest, description,price
         }
-        if (id) {
+        try {
+            if (id) {
+                await axios.put('/api/places', {
+                    id,
+                    ...placeData
+                });
+                notify.success('Listing updated');
+            } else {
+                await axios.post('/api/places', placeData);
+                notify.success('Listing created');
+            }
 
-            await axios.put('/api/places', {
-                id,
-                ...placeData
-            });
-        } else {
-            await axios.post('/api/places', placeData);
+            setRedirect(true)
+        } catch (error) {
+            notify.error(error.response?.data?.message || 'Listing save failed');
         }
-
-        setRedirect(true)
     }
 
   
@@ -75,11 +81,11 @@ export const PlacesForm = () => {
     return (
         <>
             <AccountNav />
-            <div className="container py-10 max-h-[calc(100%-80px)]">
-                <div className="bg-slate-100 max-w-[45rem] mx-auto">
-                    <form className="p-5" onSubmit={savePlaces}>
+            <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-10">
+                <div className="mx-auto overflow-hidden rounded-3xl bg-slate-100 shadow-sm ring-1 ring-slate-200">
+                    <form className="p-4 sm:p-5" onSubmit={savePlaces}>
                         <div className="grid mb-3">
-                            <label htmlFor="tittle" className="font-semibold text-xl">
+                            <label htmlFor="tittle" className="text-lg font-semibold sm:text-xl">
                                 Tittle :
                             </label>
                             <input
@@ -89,11 +95,11 @@ export const PlacesForm = () => {
                                 value={title}
                                 onChange={e => setTitle(e.target.value)}
                                 placeholder=" Tittle for your place "
-                                className="p-2 rounded-md outline-none bg-slate-300"
+                                className="rounded-md bg-slate-300 p-3 outline-none"
                             />
                         </div>
                         <div className="grid mb-3">
-                            <label htmlFor="address" className="font-semibold text-xl">
+                            <label htmlFor="address" className="text-lg font-semibold sm:text-xl">
                                 Address :
                             </label>
                             <input
@@ -103,7 +109,7 @@ export const PlacesForm = () => {
                                 value={address}
                                 onChange={e => setAddress(e.target.value)}
                                 placeholder=" address of the place"
-                                className="p-2 rounded-md outline-none bg-slate-300"
+                                className="rounded-md bg-slate-300 p-3 outline-none"
                             />
                         </div>
 
@@ -111,7 +117,7 @@ export const PlacesForm = () => {
 
 
                         <div className="grid mb-3">
-                            <label htmlFor="description" className="font-semibold text-xl">
+                            <label htmlFor="description" className="text-lg font-semibold sm:text-xl">
                                 Description :
                             </label>
                             <textarea
@@ -121,7 +127,7 @@ export const PlacesForm = () => {
                                 cols="30"
                                 rows="6"
                                 placeholder="Description of the place"
-                                className="bg-slate-300 rounded-md p-2 outline-none"
+                                className="rounded-md bg-slate-300 p-3 outline-none"
                             ></textarea>
                         </div>
 
@@ -130,7 +136,7 @@ export const PlacesForm = () => {
 
 
                         <div className="grid mb-3">
-                            <label htmlFor="extraInfo" className="font-semibold text-xl">
+                            <label htmlFor="extraInfo" className="text-lg font-semibold sm:text-xl">
                                 Extra Info :
                             </label>
                             <input
@@ -139,12 +145,12 @@ export const PlacesForm = () => {
                                 value={extraInfo}
                                 onChange={e => setExtraInfo(e.target.value)}
                                 placeholder=" address of the place"
-                                className="p-2 rounded-md outline-none bg-slate-300"
+                                className="rounded-md bg-slate-300 p-3 outline-none"
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
                             <div className="grid mb-3">
-                                <label htmlFor="checkInTime" className="font-semibold text-xl">
+                                <label htmlFor="checkInTime" className="text-lg font-semibold sm:text-xl">
                                     Check in time :
                                 </label>
                                 <input
@@ -153,12 +159,12 @@ export const PlacesForm = () => {
                                     name="checkInTime" 
                                     value={checkInTime}
                                     onChange={e => setCheckInTime(e.target.value)}
-                                    placeholder="check in time"
-                                    className="p-2 rounded-md outline-none bg-slate-300"
+                                    placeholder="Example: 7:00AM or 14"
+                                    className="rounded-md bg-slate-300 p-3 outline-none"
                                 />
                             </div>
                             <div className="grid mb-3">
-                                <label htmlFor="checkOutTime" className="font-semibold text-xl">
+                                <label htmlFor="checkOutTime" className="text-lg font-semibold sm:text-xl">
                                     Check out time :
                                 </label>
                                 <input
@@ -167,12 +173,12 @@ export const PlacesForm = () => {
                                     name="checkOutTime"
                                     value={checkOutTime}
                                     onChange={e => setCheckOutTime(e.target.value)}
-                                    placeholder="check out time"
-                                    className="p-2 rounded-md outline-none bg-slate-300"
+                                    placeholder="Example: 10:00PM or 11"
+                                    className="rounded-md bg-slate-300 p-3 outline-none"
                                 />
                             </div>
                             <div className="grid mb-3">
-                                <label htmlFor="maxGuest" className="font-semibold text-xl">
+                                <label htmlFor="maxGuest" className="text-lg font-semibold sm:text-xl">
                                     Max number of guests :
                                 </label>
                                 <input
@@ -182,11 +188,11 @@ export const PlacesForm = () => {
                                     value={maxGuest}
                                     onChange={e => setMaxGuest(e.target.value)}
                                     placeholder="number of guests"
-                                    className="p-2 rounded-md outline-none bg-slate-300"
+                                    className="rounded-md bg-slate-300 p-3 outline-none"
                                 />
                             </div>
                             <div className="grid mb-3">
-                                <label htmlFor="maxGuest" className="font-semibold text-xl">
+                                <label htmlFor="maxGuest" className="text-lg font-semibold sm:text-xl">
                                     Price Per Night :
                                 </label>
                                 <input
@@ -196,11 +202,11 @@ export const PlacesForm = () => {
                                     value={price}
                                     onChange={e => setPrice(e.target.value)}
                                     placeholder="number of guests"
-                                    className="p-2 rounded-md outline-none bg-slate-300"
+                                    className="rounded-md bg-slate-300 p-3 outline-none"
                                 />
                             </div>
                         </div>
-                        <button className="font-bold text-2xl mt-14 bg-rose-800 p-4 rounded-sm w-full mb-5">
+                        <button className="mb-5 mt-10 min-h-12 w-full rounded-2xl bg-rose-800 p-4 text-xl font-bold text-white sm:mt-14 sm:text-2xl">
                             Save
                         </button>
                     </form>

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
+import Image from "./Image";
+import { notify } from "../utils/notifications";
 
 export const PhotoUploader = ({ addPhotos, onChange }) => {
 
@@ -18,10 +20,12 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
                 return [...prev,fileName];
             })
             setPhotoLink('');
+            notify.success('Photo added');
 
 
         } catch (error) {
             console.error('Error uploading photo:', error.message);
+            notify.error(error.response?.data?.message || 'Photo upload failed');
 
 
         }
@@ -43,8 +47,10 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
             onChange((prev) => {
                 return [...prev, ...cloudinaryResponses];
             })
+            notify.success('Photos uploaded');
         }) .catch(error => {
             console.error("Error uploading photos:", error);
+            notify.error(error.response?.data?.message || 'Photo upload failed');
             // Handle error (e.g., show error message to user)
         });
 
@@ -68,31 +74,31 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
                 <label htmlFor="photoLink" className="font-semibold text-xl">
                     Photos :
                 </label>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <input
                         type="text"
                         id="photoLink"
                         value={photoLink}
                         onChange={(ev) => setPhotoLink(ev.target.value)}
                         placeholder="Add using link .... jpg"
-                        className="p-2 rounded-md outline-none bg-slate-300 w-[70%]"
+                        className="w-full rounded-md bg-slate-300 p-3 outline-none sm:w-[70%]"
                     />
-                    <button onClick={addPhotosByLink} className="p-2 w-[30%] text-center rounded-md border-2 bg-slate-300">
+                    <button onClick={addPhotosByLink} className="min-h-11 w-full rounded-md border-2 bg-slate-300 p-3 text-center font-bold sm:w-[30%]">
                         Add&nbsp;photo
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 p-3">
+            <div className="grid grid-cols-1 gap-3 p-0 min-[480px]:grid-cols-2 sm:grid-cols-3 sm:p-3">
 
                 {
                     addPhotos.length > 0 && addPhotos.map(imageAdd => (
 
                     
 
-                        <div className=" w-full h-ful relative" key={imageAdd} >
+                        <div className="relative w-full" key={imageAdd} >
 
-                            <img src={imageAdd} alt="image" className="w-full h-40 object-cover rounded-md p-1" />
+                            <Image src={imageAdd} alt="Uploaded preview" className="h-40 w-full rounded-md p-1" />
                             <button
                                 onClick={ev => removePhoto(ev,imageAdd)}
                                 className="absolute bottom-2 right-2 text-white bg-slate-800 p-2 bg-opacity-60 rounded-full hover:bg-red-600 cursor-pointer">
@@ -132,8 +138,8 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
                     ))
                 }
 
-                <div className=" w-52 h-40 flex items-center justify-center rounded-md border-2 border-blue-300">
-                    <label className="p-4 text-xl flex items-center justify-center flex-col bg-transparent cursor-pointer">
+                <div className="flex h-40 w-full items-center justify-center rounded-md border-2 border-blue-300">
+                    <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center bg-transparent p-4 text-xl">
                         <input type="file" name="file" multiple className="hidden" onChange={uploadPhotoFromDevice} />
                         <svg
                             xmlns="http://www.w3.org/2000/svg"

@@ -1,29 +1,27 @@
 import { useState } from "react";
 import Image from "../component/Image";
+import { getImageGallery } from "../utils/imageUtils";
 
 export default function PlaceGallery({ place }) {
-
     const [showAllPhotos, setShowAllPhotos] = useState(false);
+    const photos = getImageGallery(place?.photos, 5);
 
     if (showAllPhotos) {
         return (
-            <div className=" relative inset-0 text-white -top-8">
-                <div className="bg-slate-800 rounded-2xl w-36 relative -right-8 text-center flex justify-center">
-                    <button onClick={() => setShowAllPhotos(false)} className="flex gap-1 justify-center items-center p-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+            <div className="fixed inset-0 z-50 overflow-y-auto bg-white">
+                <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-3 py-3 backdrop-blur sm:px-5 sm:py-4">
+                    <button onClick={() => setShowAllPhotos(false)} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-slate-100 px-3 py-2 text-sm font-black hover:bg-slate-200 sm:px-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
                             <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
                         </svg>
-                        Close photos
+                        Close
                     </button>
+                    <h2 className="min-w-0 truncate text-center text-base font-black sm:text-lg">{place.title}</h2>
+                    <div className="hidden w-20 sm:block"></div>
                 </div>
-                <h2 className="text-3xl left-7 mt-3 font-semibold absolute text-black">Photos of {place.title}</h2>
-                <div className="bg-white p-8 grid gap-4 grid-cols-2 mt-8">
-
-                    {place?.photos?.length > 0 && place.photos.map(photo => (
-                        <div key={photo._id}>
-                            {/* <img className="aspect-square object-cover w-full min-h-[20rem] h-[33rem] rounded-2xl" src={ photo} alt="img" /> */}
-                            <Image src={photo} alt="..." />
-                        </div>
+                <div className="mx-auto grid max-w-5xl gap-4 p-3 sm:grid-cols-2 sm:p-5">
+                    {photos.map((photo, index) => (
+                    <Image key={`${photo}-${index}`} src={photo} fallbackIndex={index} alt={`${place.title} photo ${index + 1}`} loading="eager" className="h-64 rounded-3xl shadow-sm sm:h-72" />
                     ))}
                 </div>
             </div>
@@ -31,39 +29,29 @@ export default function PlaceGallery({ place }) {
     }
 
     return (
-        <div className="-mx-8 -mt-12 px-8 h-full">
-            <h2 className="text-3xl mr-48">Photos of {place.title}</h2>
-            <div className="mt-4 mb-8 grid gap-2 grid-cols-1 md:grid-cols-[2fr_1fr] bg-gray-200">
-                <div className="w-full h-full p-4">
-                    {
-                        place.photos?.[0] && (
-                            <Image onClick={() => setShowAllPhotos(true)} src={place.photos[0]} alt=".." />
-                        )
-                    }
-                </div>
-                <div className="grid gap-3 p-4">
-                    {
-                        place.photos?.[1] && (
-                            <Image onClick={() => setShowAllPhotos(true)}  src={place.photos[1]} alt=".." />
-                        )
-                    }
-                    <div className="relative">
-                        {
-                            place.photos?.[2] && (
-                                <Image onClick={() => setShowAllPhotos(true)}src={place.photos[2]} alt=".." />
-                            )
-                        }
-
-                        <button onClick={() => setShowAllPhotos(true)} className="flex gap-1 absolute bottom-6 right-2 py-2 px-4 bg-white rounded-2xl shadow-md shadow-gray-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
-                                <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
-                            </svg>
-                            Show more photos
-                        </button>
-                    </div>
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] shadow-xl shadow-black/10">
+            <div className="grid h-[14rem] gap-2 min-[480px]:h-[16rem] sm:h-[19rem] lg:h-[21rem] md:grid-cols-[2fr_1fr]">
+                <button type="button" onClick={() => setShowAllPhotos(true)} className="group h-full overflow-hidden bg-slate-200 text-left">
+                    <Image src={photos[0]} fallbackIndex={0} alt={place.title} loading="eager" className="h-full rounded-none transition duration-700 group-hover:scale-105" />
+                </button>
+                <div className="hidden grid-rows-2 gap-2 md:grid">
+                    <button type="button" onClick={() => setShowAllPhotos(true)} className="group overflow-hidden bg-slate-200">
+                        <Image src={photos[1]} fallbackIndex={1} alt={place.title} loading="eager" className="h-full rounded-none transition duration-700 group-hover:scale-105" />
+                    </button>
+                    <button type="button" onClick={() => setShowAllPhotos(true)} className="group overflow-hidden bg-slate-200">
+                        <Image src={photos[2]} fallbackIndex={2} alt={place.title} loading="eager" className="h-full rounded-none transition duration-700 group-hover:scale-105" />
+                    </button>
                 </div>
             </div>
-        </div>
 
+            {photos.length > 1 && (
+                <button onClick={() => setShowAllPhotos(true)} className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-2xl bg-white px-3 py-3 text-sm font-black text-slate-900 shadow-lg ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-xl sm:bottom-5 sm:right-5 sm:px-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                        <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
+                    </svg>
+                    Show all photos
+                </button>
+            )}
+        </div>
     );
 }

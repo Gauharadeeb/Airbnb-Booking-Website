@@ -28,6 +28,8 @@ export function UserContextProvider({ children }) {
     };
 
     const logoutUser = () => {
+        localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
         setUserState(null);
         setReady(true);
     };

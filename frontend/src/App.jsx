@@ -12,7 +12,7 @@ import {FavoritesProvider} from "./FavoritesContext.jsx";
 import axios from "axios";
 
 
-import {ToastContainer} from "react-toastify";
+import {Bounce, ToastContainer} from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import ProfilePage from "./pages/ProfilePage.jsx";
 import PlacesPage from "./pages/PlacesPage.jsx";
@@ -21,7 +21,7 @@ import HomePlacePage from "./pages/HomePlacePage.jsx";
 import MyBookingPage from "./pages/MyBookingPage.jsx";
 import SingleBookingPage from "./pages/SingleBookingPage.jsx";
 
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000"
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
 axios.defaults.withCredentials = true;
 
 function App() {
@@ -46,7 +46,20 @@ function App() {
                             <Route path="/account/bookings/:id" element={<SingleBookingPage/>}/>
                         </Route>
                     </Routes>
-                    <ToastContainer/>
+                    <ToastContainer
+                        position="top-right"
+                        limit={1}
+                        newestOnTop
+                        autoClose={2500}
+                        hideProgressBar={false}
+                        closeOnClick
+                        pauseOnFocusLoss={false}
+                        pauseOnHover
+                        draggable
+                        transition={Bounce}
+                        toastClassName={() => "stayfinder-toast"}
+                        progressClassName="stayfinder-toast-progress"
+                    />
                 </FavoritesProvider>
             </UserContextProvider>
 

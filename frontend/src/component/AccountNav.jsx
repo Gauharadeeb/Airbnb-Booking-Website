@@ -7,9 +7,7 @@ const AccountNav = () => {
     const { pathname } = useLocation();
 
     if (!ready) {
-        return (
-            <div className="mx-auto mt-8 h-12 max-w-xl animate-pulse rounded-full bg-slate-200"></div>
-        );
+        return <div className="mx-auto mt-8 h-12 max-w-xl animate-pulse rounded-full bg-slate-200"></div>;
     }
 
     if (!user) {
@@ -23,7 +21,7 @@ const AccountNav = () => {
 
     function linkClasses(type) {
         const isActive = type === subpage;
-        return `inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-black transition ${
+        return `inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full px-5 py-2 text-sm font-black transition ${
             isActive
                 ? "bg-rose-600 text-white shadow-sm"
                 : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
@@ -31,7 +29,7 @@ const AccountNav = () => {
     }
 
     return (
-        <nav className="mb-8 mt-2 flex w-full flex-wrap justify-center gap-2">
+        <nav className="scrollbar-none mb-8 mt-2 flex w-full gap-2 overflow-x-auto px-4 pb-2 sm:flex-wrap sm:justify-center sm:overflow-visible">
             <Link className={linkClasses("profile")} to="/account">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5}
                      stroke="currentColor" className="h-5 w-5">

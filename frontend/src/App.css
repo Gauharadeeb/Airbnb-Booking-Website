@@ -1,0 +1,74 @@
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  min-width: 0;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+img,
+video {
+  max-width: 100%;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.market-card {
+  animation: market-card-in 420ms ease both;
+  will-change: transform;
+}
+
+.market-card:hover {
+  transform: translateY(-4px);
+}
+
+.stayfinder-toast {
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 22px 60px rgba(15, 23, 42, 0.16);
+  color: #222222;
+  font-weight: 800;
+  letter-spacing: 0;
+  min-height: 56px;
+  padding: 14px 16px;
+}
+
+.stayfinder-toast-progress {
+  background: #ff385c;
+}
+
+@media (max-width: 640px) {
+  .Toastify__toast-container {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+    width: auto;
+  }
+}
+
+@keyframes market-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

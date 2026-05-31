@@ -1,5 +1,6 @@
 import { useFavorites } from '../FavoritesContext.jsx';
 import { Link } from 'react-router-dom';
+import Image from '../component/Image.jsx';
 
 const formatPrice = (value) => new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -52,9 +53,7 @@ const FavoritesPage = () => {
                             <div key={item.id} className="group overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-xl">
                                 <div className="relative">
                                     <Link to={`/place/${item.id}`}>
-                                        {item.photo && (
-                                            <img className="h-72 w-full object-cover" src={item.photo} alt={item.title} />
-                                        )}
+                                        <Image className="h-72 w-full rounded-none transition duration-500 group-hover:scale-105" src={item.photo} alt={item.title} />
                                     </Link>
                                     <button
                                         onClick={() => removeFromFavorites(item.id)}
@@ -95,10 +94,10 @@ const FavoritesPage = () => {
                         {groupedFavorites.service.map(item => (
                             <div key={item.id} className="group cursor-pointer">
                                 <div className="relative overflow-hidden rounded-2xl mb-3">
-                                    <img
+                                    <Image
                                         src={item.image}
                                         alt={item.title}
-                                        className="w-full h-48 object-cover group-hover:scale-105 transition duration-300"
+                                        className="h-48 w-full rounded-2xl transition duration-300 group-hover:scale-105"
                                     />
                                     <button 
                                         onClick={() => removeFromFavorites(item.id)}
@@ -126,10 +125,10 @@ const FavoritesPage = () => {
                         {groupedFavorites.experience.map(item => (
                             <div key={item.id} className="group cursor-pointer">
                                 <div className="relative overflow-hidden rounded-2xl mb-3">
-                                    <img
+                                    <Image
                                         src={item.image}
                                         alt={item.title}
-                                        className="w-full h-48 object-cover group-hover:scale-105 transition duration-300"
+                                        className="h-48 w-full rounded-2xl transition duration-300 group-hover:scale-105"
                                     />
                                     <button 
                                         onClick={() => removeFromFavorites(item.id)}
