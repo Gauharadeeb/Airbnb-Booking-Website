@@ -58,11 +58,24 @@ export function getImageUrl(src, fallbackIndex = 0) {
         return getFallbackImage(fallbackIndex);
     }
 
+    const apiBaseUrl = getApiBaseUrl();
+
     if (/^(https?:|data:|blob:)/i.test(value)) {
+        try {
+            const imageUrl = new URL(value);
+            const isLocalBackendUrl = ["localhost", "127.0.0.1"].includes(imageUrl.hostname);
+            const isBackendImagePath = imageUrl.pathname.startsWith("/api/upload-image/")
+                || imageUrl.pathname.startsWith("/uploads/");
+
+            if (isLocalBackendUrl && isBackendImagePath) {
+                return `${apiBaseUrl}${imageUrl.pathname}`;
+            }
+        } catch {
+            return getFallbackImage(fallbackIndex);
+        }
+
         return value;
     }
-
-    const apiBaseUrl = getApiBaseUrl();
 
     if (value.startsWith("/api/upload-image/") || value.startsWith("/uploads/")) {
         return `${apiBaseUrl}${value}`;

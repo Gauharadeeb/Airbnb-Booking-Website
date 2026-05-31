@@ -24,7 +24,10 @@ const allowedOrigins = rawClientUrl
     .filter(Boolean);
 const uploadDir = path.join(__dirname, 'temp', 'uploads');
 const uploadProvider = process.env.UPLOAD_PROVIDER || 'local';
-const publicApiUrl = process.env.API_PUBLIC_URL || `http://localhost:${port}`;
+const defaultPublicApiUrl = process.env.NODE_ENV === 'production'
+    ? 'https://airbnb-booking-website-2.onrender.com'
+    : `http://localhost:${port}`;
+const publicApiUrl = (process.env.API_PUBLIC_URL || defaultPublicApiUrl).replace(/\/$/, '');
 
 if (!jwtSecret) {
     console.error('JWT_SECRET_TOKEN is missing in backend/.env');
