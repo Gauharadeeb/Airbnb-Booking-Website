@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { differenceInCalendarDays } from "date-fns";
-import axios from "axios";
+import api from "../api/client";
 import { Navigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { UserContext } from "../UserContext";
@@ -64,7 +64,7 @@ export default function BookingWidget({ place }) {
 
         try {
             setIsSubmitting(true);
-            const response = await axios.post("/api/bookings", {
+            const response = await api.post("/api/bookings", {
                 checkIn,
                 checkOut,
                 numberOfGuests: Number(numberOfGuests),

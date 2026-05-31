@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "../api/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FilterRail, SearchBar } from "../component/Marketplace";
@@ -147,7 +147,7 @@ const IndexPage = () => {
     const fetchPlaces = useCallback(async () => {
         try {
             setLoading(true);
-            const { data } = await axios.get("/api/home-places", {
+            const { data } = await api.get("/api/home-places", {
                 params: {
                     search: query,
                     perk: activeFilter,

@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import AccountNav from "../component/AccountNav";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/client";
 import PlaceImg from "../component/PlaceImg";
 import { clampText, formatPrice } from "../utils/formatters";
 
@@ -11,7 +11,7 @@ const PlacesPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get("/api/places")
+    api.get("/api/places")
       .then(({ data }) => setPlaces(data || []))
       .finally(() => setLoading(false));
   }, []);

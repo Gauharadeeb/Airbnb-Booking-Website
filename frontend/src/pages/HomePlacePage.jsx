@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "../api/client";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import BookingWidget from "../component/BookingWidget";
@@ -24,7 +24,7 @@ const HomePlacePage = () => {
             if (!id) return;
             try {
                 setErrorMessage("");
-                const { data } = await axios.get(`/api/places/${id}`);
+                const { data } = await api.get(`/api/places/${id}`);
                 setIndividualPlace(data);
             } catch (error) {
                 setErrorMessage(error.response?.data?.message || "Place not found");

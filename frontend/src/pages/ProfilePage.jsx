@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { UserContext } from "../UserContext.jsx";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
+import api from "../api/client";
 import PlacesPage from '../pages/PlacesPage.jsx'
 import AccountNav from "../component/AccountNav.jsx";
 import { notify } from "../utils/notifications";
@@ -38,8 +38,8 @@ const ProfilePage = () => {
         if (!user) return;
 
         Promise.allSettled([
-            axios.get('/api/bookings'),
-            axios.get('/api/places'),
+            api.get('/api/bookings'),
+            api.get('/api/places'),
         ]).then(([bookingsResult, placesResult]) => {
             if (bookingsResult.status === 'fulfilled') {
                 setBookings(bookingsResult.value.data.data || []);
@@ -52,7 +52,7 @@ const ProfilePage = () => {
 
     async function logout() {
         try {
-            await axios.post('/api/logout');
+            await api.post('/api/logout');
         } finally {
             logoutUser();
             notify.success('Logged out successfully');
@@ -73,7 +73,7 @@ const ProfilePage = () => {
 
         const formData = new FormData();
         formData.append('photos', profileFile);
-        const { data } = await axios.post('/api/upload-image', formData, {
+        const { data } = await api.post('/api/upload-image', formData, {
             headers: { 'Content-type': 'multipart/form-data' },
         });
 
@@ -84,7 +84,7 @@ const ProfilePage = () => {
         try {
             setIsSaving(true);
             const uploadedProfileImage = await uploadProfileImage();
-            const { data } = await axios.put('/api/profile', {
+            const { data } = await api.put('/api/profile', {
                 name: profileName,
                 profileImage: uploadedProfileImage,
             });

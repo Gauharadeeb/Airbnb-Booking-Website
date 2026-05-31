@@ -1,6 +1,6 @@
 import { useContext, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/client";
 import { UserContext } from "../UserContext.jsx";
 import { notify } from "../utils/notifications";
 import Image from "../component/Image.jsx";
@@ -50,7 +50,7 @@ const LoginPage = () => {
     setIsSubmitting(true);
 
     try {
-      const { data } = await axios.post("/api/login", {
+      const { data } = await api.post("/api/login", {
         email: normalizedEmail,
         password,
       });

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useParams } from 'react-router-dom'
 import { Perks } from "../component/Perks";
 import { PhotoUploader } from "../component/PhotoUploader";
-import axios from "axios";
+import api from "../api/client";
 import AccountNav from "../component/AccountNav";
 import { notify } from "../utils/notifications";
 
@@ -25,7 +25,7 @@ export const PlacesForm = () => {
     useEffect(() => {
         if (!id) return;
 
-        axios.get('/api/places/' + id).then((response) => {
+        api.get('/api/places/' + id).then((response) => {
             const { data } = response;
             // console.log(data)
             setTitle(data.title);
@@ -54,13 +54,13 @@ export const PlacesForm = () => {
         }
         try {
             if (id) {
-                await axios.put('/api/places', {
+                await api.put('/api/places', {
                     id,
                     ...placeData
                 });
                 notify.success('Listing updated');
             } else {
-                await axios.post('/api/places', placeData);
+                await api.post('/api/places', placeData);
                 notify.success('Listing created');
             }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import api from "../api/client";
 import Image from "./Image";
 import { notify } from "../utils/notifications";
 
@@ -11,7 +11,7 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
         e.preventDefault();
 
         try {
-            const { data:{imageUrl} } = await axios.post('/api/upload-by-link', {
+            const { data:{imageUrl} } = await api.post('/api/upload-by-link', {
                 link: photoLink,
             });
             const fileName =imageUrl ;
@@ -39,7 +39,7 @@ export const PhotoUploader = ({ addPhotos, onChange }) => {
             data.append('photos', files[i]);
         }
 
-        axios.post('/api/upload-image', data, {
+        api.post('/api/upload-image', data, {
             headers: { 'Content-type': 'multipart/form-data' }
         }).then(response => {
             const { data: {cloudinaryResponses} } = response;

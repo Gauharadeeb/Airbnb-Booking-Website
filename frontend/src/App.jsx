@@ -9,7 +9,6 @@ import ExperiencesPage from "./pages/ExperiencesPage.jsx";
 import FavoritesPage from "./pages/FavoritesPage.jsx";
 import {UserContextProvider} from "./UserContext.jsx";
 import {FavoritesProvider} from "./FavoritesContext.jsx";
-import axios from "axios";
 
 
 import {Bounce, ToastContainer} from "react-toastify";
@@ -20,9 +19,6 @@ import PlacesForm from "./pages/PlacesForm.jsx";
 import HomePlacePage from "./pages/HomePlacePage.jsx";
 import MyBookingPage from "./pages/MyBookingPage.jsx";
 import SingleBookingPage from "./pages/SingleBookingPage.jsx";
-
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
-axios.defaults.withCredentials = true;
 
 function App() {
 

@@ -1,6 +1,6 @@
 import {useState } from 'react';
 import {Link, Navigate} from "react-router-dom";
-import axios from "axios";
+import api from "../api/client";
 import { notify } from "../utils/notifications";
 import UserAvatar from "../component/UserAvatar";
 import Image from "../component/Image";
@@ -87,7 +87,7 @@ const RegisterPage = () => {
 
         const formData = new FormData();
         formData.append('photos', profileFile);
-        const { data } = await axios.post('/api/upload-image', formData, {
+        const { data } = await api.post('/api/upload-image', formData, {
             headers: { 'Content-type': 'multipart/form-data' },
         });
 
@@ -111,7 +111,7 @@ const RegisterPage = () => {
         setIsSubmitting(true);
         try{
            const uploadedProfileImage = await uploadProfileImage();
-           await axios.post('/api/register',{
+           await api.post('/api/register',{
                 name: normalizedName,
                 email: normalizedEmail,
                 password,

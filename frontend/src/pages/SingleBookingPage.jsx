@@ -1,6 +1,6 @@
 import { Navigate, useParams } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/client";
 import AddressLink from "../component/AddressLink";
 import PlaceGallery from "../component/PlaceGallery";
 import BookingDates from "../component/BookingDates";
@@ -14,7 +14,7 @@ const SingleBookingPage = () => {
 
   useEffect(() => {
     if (!id || !user) return;
-    axios.get(`/api/bookings/${id}`).then(response => {
+    api.get(`/api/bookings/${id}`).then(response => {
       setBooking(response.data.data);
     });
   }, [id, user]);
