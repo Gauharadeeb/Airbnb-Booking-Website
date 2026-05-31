@@ -1,98 +1,270 @@
-
-// Import dependencies
 const express = require('express');
-const app = express();
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
 const fs = require('fs');
+const path = require('path');
 const cloudinary = require('cloudinary').v2;
-
-// Import models
-const Place = require('./models/Place');
-const User = require('./models/User');
-const Booking = require('./models/Booking');
-
-// Import image downloader
-const imageDownloader = require('image-downloader');
-
-// Import JSON Web Token and bcrypt
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
-const mongoose = require('mongoose');
 
-// Secret for JWT and password hashing
-const secret = bcrypt.genSaltSync(10);
+const User = require('./models/User');
+const Place = require('./models/Place');
+const Booking = require('./models/Booking');
 
+const app = express();
+const port = Number(process.env.PORT || 4000);
+const jwtSecret = process.env.JWT_SECRET_TOKEN;
+const rawClientUrl = process.env.CLIENT_URL || '';
+const allowedOrigins = rawClientUrl
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+const uploadDir = path.join(__dirname, 'temp', 'uploads');
+const uploadProvider = process.env.UPLOAD_PROVIDER || 'local';
+const publicApiUrl = process.env.API_PUBLIC_URL || `http://localhost:${port}`;
+
+if (!jwtSecret) {
+    console.error('JWT_SECRET_TOKEN is missing in backend/.env');
+    process.exit(1);
+}
 
 cloudinary.config({
-    cloud_name:process.env.CLOUDINARY_CLOUD_NAME,
-    api_key:process.env.CLOUDINARY_API_KEY,
-    api_secret:process.env.CLOUDINARY_API_SECRET,
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-
-const connectDB = async () => {
-    try {
-        if (!process.env.MONGO_URL) {
-            throw new Error('MONGO_URL is missing. Create backend/.env from backend/.env.example.');
-        }
-        await mongoose.connect(process.env.MONGO_URL, {
-            serverSelectionTimeoutMS: 5000,
-        });
-        console.log('Connected to MongoDB');
-    } catch (error) {
-        console.error('Error connecting to MongoDB:', error.message);
-    }
-};
-connectDB();
-
-
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        // Create the destination directory if it doesn't exist
-        const dest = './temp/uploads';
-        require('fs').mkdir(dest, { recursive: true }, (err) => {
-            if (err) {
-                cb(err, dest);
-            } else {
-                cb(null, dest);
-            }
-        });
-    },
-    filename: function (req, file, cb) {
-        cb(null, file.originalname);
-    }
-});
-
-
-
-function getUserDataFromReq(req) {
-    return new Promise((resolve, reject) => {
-      jwt.verify(req.cookies.token, process.env.JWT_SECRET_TOKEN, {}, async (err, userData) => {
-        if (err) throw err;
-        resolve(userData);
-      });
-    });
-  }
-  
-
-
-
-// Use JSON for requests and cookies
 app.use(express.json());
 app.use(cookieParser());
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+const corsOptions = {
+    origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
 
-app.use(cors({
+        return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
-    origin: allowedOrigin,
-}));
-app.use('/api/upload-image', express.static('temp/uploads'));
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+};
 
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+app.use('/api/upload-image', express.static(uploadDir));
+app.use('/uploads', express.static(uploadDir));
 
-// Test route
+const storage = multer.diskStorage({
+    destination(req, file, cb) {
+        fs.mkdir(uploadDir, { recursive: true }, (err) => cb(err, uploadDir));
+    },
+    filename(req, file, cb) {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    },
+});
+
+const upload = multer({ storage }).array('photos');
+
+function getLocalUploadUrl(fileName) {
+    return `${publicApiUrl}/api/upload-image/${fileName}`;
+}
+
+function isTlsCertificateError(error) {
+    return error?.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE';
+}
+
+function getUploadErrorMessage(error) {
+    if (isTlsCertificateError(error)) {
+        return 'Cloudinary upload failed because Node could not verify the TLS certificate. Use UPLOAD_PROVIDER=local for development, or fix your system/Node certificate chain for Cloudinary.';
+    }
+    return error.message || 'Image upload failed.';
+}
+
+function asyncHandler(handler) {
+    return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+function requireDatabase(req, res, next) {
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            message: 'Database is not connected. Check backend/.env MongoDB settings.',
+        });
+    }
+    next();
+}
+
+function requireAuth(req, res, next) {
+    const { token } = req.cookies;
+
+    if (!token) {
+        return res.status(401).json({ success: false, message: 'Please log in first.' });
+    }
+
+    jwt.verify(token, jwtSecret, {}, (err, userData) => {
+        if (err) {
+            return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+        }
+        req.user = userData;
+        next();
+    });
+}
+
+function getPublicUser(user) {
+    if (!user) return null;
+    return {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profileImage: user.profileImage || '',
+    };
+}
+
+function normalizeName(value = '') {
+    return String(value).trim().replace(/\s+/g, ' ');
+}
+
+function normalizeEmail(value = '') {
+    return String(value).trim().toLowerCase();
+}
+
+function isValidEmail(value = '') {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+}
+
+function validateAuthName(name) {
+    if (!name) return 'Name is required.';
+    if (name.length < 3) return 'Name must be at least 3 characters.';
+    if (name.length > 40) return 'Name must not be more than 40 characters.';
+    if (!/^[A-Za-z\s]+$/.test(name)) return 'Name can contain only letters and spaces.';
+    return '';
+}
+
+function validateAuthPassword(password, name, email) {
+    const value = String(password || '');
+    const lowerValue = value.toLowerCase();
+
+    if (!value.trim()) return 'Password is required.';
+    if (value.length < 8) return 'Password must be at least 8 characters.';
+    if (value.length > 32) return 'Password must not be more than 32 characters.';
+    if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter.';
+    if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter.';
+    if (!/\d/.test(value)) return 'Password must contain at least one number.';
+    if (!/[^A-Za-z0-9]/.test(value)) return 'Password must contain at least one special character.';
+    if (lowerValue === name.toLowerCase() || lowerValue === email.toLowerCase()) {
+        return 'Password should not be the same as your name or email.';
+    }
+    return '';
+}
+
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseListingHour(value) {
+    if (value === undefined || value === null || value === '') return 0;
+
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value >= 0 && value <= 23 ? value : null;
+    }
+
+    const input = String(value).trim().toLowerCase().replace(/\s+/g, '');
+    const numericHour = Number(input);
+
+    if (Number.isFinite(numericHour) && numericHour >= 0 && numericHour <= 23) {
+        return numericHour;
+    }
+
+    const timeMatch = input.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
+    if (!timeMatch) return null;
+
+    let hour = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2] || 0);
+    const period = timeMatch[3];
+
+    if (hour < 1 || hour > 12 || minutes < 0 || minutes > 59) return null;
+    if (period === 'am') {
+        hour = hour === 12 ? 0 : hour;
+    } else {
+        hour = hour === 12 ? 12 : hour + 12;
+    }
+
+    return hour;
+}
+
+function getMongoOptions(mongoUrl) {
+    const options = {
+        serverSelectionTimeoutMS: 10000,
+    };
+
+    try {
+        const parsedUrl = new URL(mongoUrl);
+        if (!parsedUrl.pathname.replace('/', '')) {
+            options.dbName = process.env.MONGO_DATABASE || 'airbnb_booking';
+        }
+    } catch {
+        options.dbName = process.env.MONGO_DATABASE || 'airbnb_booking';
+    }
+
+    return options;
+}
+
+function isValidContactNumber(phone) {
+    return /^\d{10}$/.test(String(phone || '').trim());
+}
+
+function getBookingConfirmationMessage(booking) {
+    const dates = `${booking.checkIn.toISOString().slice(0, 10)} to ${booking.checkOut.toISOString().slice(0, 10)}`;
+    return `Booking confirmed! Name: ${booking.name}, Contact: ${booking.phone}, Property: ${booking.place.title}, Address: ${booking.place.address}, Dates: ${dates}.`;
+}
+
+function sendBookingConfirmationMessage() {
+    // SMS integration can be added here using Twilio/Fast2SMS later.
+}
+
+async function connectDB() {
+    const mongoUrl = process.env.MONGO_URL || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/airbnb_booking';
+    await mongoose.connect(mongoUrl, getMongoOptions(mongoUrl));
+    console.log('Connected to MongoDB');
+}
+
+async function searchPlaces({ search = '', maxPrice, perk, sort = 'recommended', guests } = {}) {
+    const filter = {};
+    const andConditions = [];
+
+    if (search.trim()) {
+        const regex = new RegExp(escapeRegex(search.trim()), 'i');
+        andConditions.push({ $or: [{ title: regex }, { address: regex }, { description: regex }] });
+    }
+
+    if (maxPrice) {
+        filter.price = { $lte: Number(maxPrice) };
+    }
+
+    if (guests) {
+        filter.maxGuests = { $gte: Number(guests) };
+    }
+
+    if (perk && perk !== 'all') {
+        filter.perks = perk;
+    }
+
+    if (andConditions.length) {
+        filter.$and = andConditions;
+    }
+
+    const sortOption = sort === 'price-low'
+        ? { price: 1 }
+        : sort === 'price-high'
+            ? { price: -1 }
+            : { createdAt: -1, _id: -1 };
+
+    return Place.find(filter).sort(sortOption).limit(60);
+}
+
 app.get('/api/test', (req, res) => {
     res.json('test ok');
 });
@@ -101,438 +273,393 @@ app.get('/api/health', (req, res) => {
     res.json({
         api: 'ok',
         database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        driver: 'mongodb',
     });
 });
 
-function requireDatabase(req, res, next) {
-    if (mongoose.connection.readyState !== 1) {
-        return res.status(503).json({
-            success: false,
-            message: 'Database is not connected. Check backend/.env MONGO_URL and MongoDB Atlas Network Access.',
-        });
-    }
-    next();
-}
+app.post('/api/register', requireDatabase, asyncHandler(async (req, res) => {
+    const { name, email, password, profileImage = '' } = req.body;
+    const normalizedName = normalizeName(name);
+    const normalizedEmail = normalizeEmail(email);
 
-// Register route
-app.post('/api/register', requireDatabase, async (req, res) => {
-    const { name, email, password } = req.body;
-
-    try {
-        // Check if the user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ success: false, message: 'User already exists' });
-        }
-
-        // Hash the password
-        const hashedPassword = await bcrypt.hashSync(password, secret);
-
-        // Create a new user
-        const newUser = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-        });
-
-        res.status(201).json({ success: true, data: newUser });
-    } catch (error) {
-        console.error('Registration error:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+    const nameError = validateAuthName(normalizedName);
+    if (nameError) {
+        return res.status(400).json({ success: false, message: nameError });
     }
 
-});
+    if (!normalizedEmail) {
+        return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
 
-// Login route
-app.post('/api/login', requireDatabase, async (req, res) => {
+    if (!isValidEmail(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+
+    const passwordError = validateAuthPassword(password, normalizedName, normalizedEmail);
+    if (passwordError) {
+        return res.status(400).json({ success: false, message: passwordError });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+
+    if (existingUser) {
+        return res.status(409).json({ success: false, message: 'Email already exists. Please login or use another email.' });
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, bcrypt.genSaltSync(10));
+    const newUser = await User.create({
+        name: normalizedName,
+        email: normalizedEmail,
+        profileImage: String(profileImage || '').trim(),
+        password: hashedPassword,
+    });
+
+    res.status(201).json({ success: true, data: getPublicUser(newUser) });
+}));
+
+app.post('/api/login', requireDatabase, asyncHandler(async (req, res) => {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    try {
-        const userFromDb = await User.findOne({ email });
-
-        if (!userFromDb) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        const passOk = bcrypt.compareSync(password, userFromDb.password);
-        if (!passOk) {
-            return res.status(401).json({ success: false, message: 'Invalid password' });
-        }
-
-        jwt.sign({
-            email: userFromDb.email,
-            id: userFromDb._id,
-        }, process.env.JWT_SECRET_TOKEN, {}, (err, token) => {
-            if (err) {
-                console.error('Error signing JWT token:', err);
-                return res.status(500).json({ success: false, error: 'Internal server error' });
-            }
-            const { name, email, _id } = userFromDb;
-            res.cookie('token', token, {
-                httpOnly: true,
-                sameSite: 'lax',
-            }).json({ success: true, data: { name, email, _id } });
-        });
-    } catch (error) {
-        console.error('Error during login:', error.message);
-        res.status(500).json({ success: false, error: error.message });
+    if (!normalizedEmail) {
+        return res.status(400).json({ success: false, message: 'Email is required.' });
     }
 
-});
-
-// Profile route
-app.get('/api/profile', requireDatabase, async(req, res) => {
-
-    try {
-        const { token } = req.cookies;
-
-        if (!token) {
-            return res.status(401).json({ success: false, message: "Token not provided." });
-        }
-
-        // Verify JWT token
-        const decodedToken = jwt.verify(token, process.env.JWT_SECRET_TOKEN); // Assuming you have JWT_SECRET set in your environment variables
-
-        // Find user by ID
-        const user = await User.findById(decodedToken.id).select('name email').lean();
-        // console.log(user)
-
-        // Check if user exists
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found." });
-        }
-
-        // Send user profile data as response
-        const { name, email, _id } = user;
-        res.json({ success: true, data: { name, email, _id } });
-    } catch (error) {
-        // Handle errors
-        console.error(error);
-        res.status(500).json({ success: false, error: "Internal Server Error" });
+    if (!isValidEmail(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
     }
-});
 
-// Logout route
+    if (!String(password || '').trim()) {
+        return res.status(400).json({ success: false, message: 'Password is required.' });
+    }
+
+    const userFromDb = await User.findOne({ email: normalizedEmail }).select('+password');
+
+    if (!userFromDb) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    const passOk = bcrypt.compareSync(password, userFromDb.password);
+    if (!passOk) {
+        return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign({
+        email: userFromDb.email,
+        id: userFromDb._id,
+    }, jwtSecret);
+
+    res.cookie('token', token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+    }).json({ success: true, data: getPublicUser(userFromDb) });
+}));
+
+app.get('/api/profile', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    res.json({ success: true, data: getPublicUser(user) });
+}));
+
+app.put('/api/profile', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const { name, profileImage = '' } = req.body;
+
+    if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, message: 'Name is required.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+        req.user.id,
+        {
+            name: name.trim(),
+            profileImage: String(profileImage || '').trim(),
+        },
+        { new: true, runValidators: true },
+    );
+
+    if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    res.json({ success: true, data: getPublicUser(user) });
+}));
+
 app.post('/api/logout', (req, res) => {
-    try {
-        // Clear the token cookie by setting an empty value and maxAge to 0
-        res.clearCookie('token').json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
-    }
+    res.clearCookie('token').json({ success: true });
 });
 
-// Upload image by link route
-app.post('/api/upload-by-link', async (req, res) => {
+app.post('/api/upload-by-link', asyncHandler(async (req, res) => {
+    const { link } = req.body;
+
+    if (!link) {
+        return res.status(400).json({ success: false, message: 'Image link is required.' });
+    }
+
+    if (uploadProvider === 'local') {
+        return res.json({
+            imageUrl: link,
+            message: 'Image link added locally',
+            provider: 'local',
+            success: true,
+        });
+    }
+
     try {
-        const { link } = req.body;
-        const result = await cloudinary.uploader.upload(link, { folder: 'upload-image-by-link' });// Specify your desired folder in Cloudinary
-        console.log(result)
-        res.send({
+        const result = await cloudinary.uploader.upload(link, { folder: 'upload-image-by-link' });
+        res.json({
             imageUrl: result.secure_url,
             message: 'Successfully uploaded to Cloudinary',
-            status: 200,
+            provider: 'cloudinary',
+            success: true,
         });
     } catch (error) {
-        res.send({
-            error: error.message,
-            message: 'Error occurred while uploading to Cloudinary',
+        res.status(502).json({
+            success: false,
+            message: getUploadErrorMessage(error),
         });
     }
-});
+}));
 
-
-
-const upload = multer({
-    storage: storage
-}).array("photos"); // Change .single() to .array() to handle multiple files
-
-app.post('/api/upload-image', async (req, res) => {
-    
-    // Removed upload.single() from route handler
-    try {
-        upload(req, res, async function (err) {
+app.post('/api/upload-image', (req, res, next) => {
+    upload(req, res, async (err) => {
+        try {
             if (err instanceof multer.MulterError) {
-                // A Multer error occurred when uploading
-                return res.status(400).json({
-                    message: err.message,
-                    success: false
-                });
-            } else if (err) {
-                // An unknown error occurred when uploading
-                return res.status(500).json({
-                    message: err.message,
-                    success: false
-                });
+                return res.status(400).json({ message: err.message, success: false });
+            }
+
+            if (err) {
+                return res.status(500).json({ message: err.message, success: false });
+            }
+
+            if (!req.files?.length) {
+                return res.status(400).json({ message: 'No photos uploaded.', success: false });
             }
 
             const uploadedFiles = [];
             const cloudinaryResponses = [];
-            for (let i = 0; i < req.files.length; i++) {
-                const { path, originalname } = req.files[i];
-                const parts = originalname.split('.');
-                const ext = parts[parts.length - 1];
-                const newPath = path + '.' + ext;
-                fs.renameSync(path, newPath);
-                uploadedFiles.push(newPath.replace('temp\\uploads\\', ''));
 
-                // console.log("path: " + path);
-                // console.log("file path->" + newPath);
-                
-                // Assuming cloudinary is properly configured elsewhere
-                const cloudinaryResponse = await cloudinary.uploader.upload(newPath,{folder:'upload-from-device'});
-                // console.log('Uploaded to Cloudinary:', cloudinaryResponse);
-                cloudinaryResponses.push(cloudinaryResponse.secure_url); // Store Cloudinary response
+            for (const file of req.files) {
+                const ext = path.extname(file.originalname);
+                const newPath = `${file.path}${ext}`;
+                fs.renameSync(file.path, newPath);
+                const localFileName = path.basename(newPath);
+                uploadedFiles.push(localFileName);
 
-                // Delete the temporarily saved file
-                fs.unlinkSync(newPath);
+                if (uploadProvider === 'local') {
+                    cloudinaryResponses.push(getLocalUploadUrl(localFileName));
+                } else {
+                    try {
+                        const cloudinaryResponse = await cloudinary.uploader.upload(newPath, { folder: 'upload-from-device' });
+                        cloudinaryResponses.push(cloudinaryResponse.secure_url);
+                        fs.unlinkSync(newPath);
+                    } catch (error) {
+                        cloudinaryResponses.push(getLocalUploadUrl(localFileName));
+                        if (!isTlsCertificateError(error)) {
+                            throw error;
+                        }
+                    }
+                }
             }
 
             res.json({
-                message: "ok",
-                uploadedFiles: uploadedFiles,
-                cloudinaryResponses: cloudinaryResponses,
-                success: true
+                message: 'ok',
+                uploadedFiles,
+                cloudinaryResponses,
+                success: true,
             });
-        });
-    } catch (error) {
-        res.status(500).json({
-            message: error.message,
-            success: false
-        });
-    }
-});
-
-
-
-// Places route
-app.post('/api/places', (req, res) => {
-    const { token } = req.cookies;
-    const { title, address, addPhotos, perks,
-        extraInfo, checkInTime, checkOutTime,
-        maxGuest, description, price } = req.body;
-
-    jwt.verify(token, process.env.JWT_SECRET_TOKEN, {}, async (err, cookieData) => {
-        if (err) {
-            throw err;
+        } catch (error) {
+            next(error);
         }
-        const placeDoc = await Place.create({
-            owner: cookieData.id,
-            title: title,
-            address: address,
-            photos: addPhotos,
-            description: description,
-            perks: perks,
-            extraInfo: extraInfo,
-            checkIn: checkInTime,
-            checkOut: checkOutTime,
-            maxGuests: maxGuest,
-            price: price
-        });
-
-        res.json(placeDoc);
     });
 });
 
-// Get places route
-app.get('/api/places', (req, res) => {
-    const { token } = req.cookies;
+app.post('/api/places', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const {
+        title, address, addPhotos, perks, extraInfo,
+        checkInTime, checkOutTime, maxGuest, description, price,
+    } = req.body;
+    const checkInHour = parseListingHour(checkInTime);
+    const checkOutHour = parseListingHour(checkOutTime);
 
-    jwt.verify(token, process.env.JWT_SECRET_TOKEN, {}, async (err, cookieData) => {
-        if (err) {
-            throw err;
-        }
+    if (checkInHour === null || checkOutHour === null) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please enter valid check-in and check-out times, for example 7:00AM, 10:00PM, or 14.',
+        });
+    }
 
-        const { id } = cookieData;
+    const placeDoc = await Place.create({
+        owner: req.user.id,
+        title,
+        address,
+        photos: addPhotos || [],
+        description,
+        perks: perks || [],
+        extraInfo,
+        checkIn: checkInHour,
+        checkOut: checkOutHour,
+        maxGuests: Number(maxGuest || 1),
+        price: Number(price || 0),
+    });
 
-        res.json(await Place.find({ owner: id }));
+    res.json(placeDoc);
+}));
+
+app.get('/api/places', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const places = await Place.find({ owner: req.user.id }).sort({ createdAt: -1 });
+    res.json(places);
+}));
+
+app.get('/api/places/:id', requireDatabase, asyncHandler(async (req, res) => {
+    const place = await Place.findById(req.params.id);
+
+    if (!place) {
+        return res.status(404).json({ success: false, message: 'Place not found' });
+    }
+
+    res.json(place);
+}));
+
+app.put('/api/places', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const {
+        id, title, address, addPhotos, perks, extraInfo,
+        checkInTime, checkOutTime, maxGuest, description, price,
+    } = req.body;
+    const checkInHour = parseListingHour(checkInTime);
+    const checkOutHour = parseListingHour(checkOutTime);
+
+    if (checkInHour === null || checkOutHour === null) {
+        return res.status(400).json({
+            success: false,
+            message: 'Please enter valid check-in and check-out times, for example 7:00AM, 10:00PM, or 14.',
+        });
+    }
+
+    const placeDoc = await Place.findById(id);
+
+    if (!placeDoc) {
+        return res.status(404).json({ success: false, message: 'Place not found' });
+    }
+
+    if (req.user.id !== placeDoc.owner.toString()) {
+        return res.status(403).json({ success: false, message: 'You can only update your own place' });
+    }
+
+    await Place.findByIdAndUpdate(id, {
+        title,
+        address,
+        photos: addPhotos || [],
+        description,
+        perks: perks || [],
+        extraInfo,
+        checkIn: checkInHour,
+        checkOut: checkOutHour,
+        maxGuests: Number(maxGuest || 1),
+        price: Number(price || 0),
+    }, { runValidators: true });
+
+    res.json('ok');
+}));
+
+app.get('/api/home-places', requireDatabase, asyncHandler(async (req, res) => {
+    const { search = '', maxPrice, perk, sort = 'recommended', guests } = req.query;
+    const allPlaces = await searchPlaces({ search, maxPrice, perk, sort, guests });
+
+    res.json({
+        success: true,
+        count: allPlaces.length,
+        places: allPlaces,
+    });
+}));
+
+app.post('/api/bookings', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const data = req.body;
+    const nights = Math.ceil((new Date(data.checkOut) - new Date(data.checkIn)) / (1000 * 60 * 60 * 24));
+    const phone = String(data.phone || '').trim();
+    const place = await Place.findById(data.place);
+
+    if (!place) {
+        return res.status(404).json({ success: false, message: 'Place not found' });
+    }
+
+    if (!nights || nights < 1) {
+        return res.status(400).json({ success: false, message: 'Choose valid check-in and check-out dates' });
+    }
+
+    if (Number(data.numberOfGuests) > Number(place.maxGuests || 1)) {
+        return res.status(400).json({ success: false, message: `This place allows up to ${place.maxGuests} guests` });
+    }
+
+    if (!isValidContactNumber(phone)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit contact number.' });
+    }
+
+    const totalPrice = Number(place.price || 0) * nights;
+    const bookingDoc = await Booking.create({
+        place: data.place,
+        name: data.name,
+        user: req.user.id,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+        phone,
+        price: totalPrice,
+        numberOfGuests: Number(data.numberOfGuests || 1),
+    });
+
+    const populatedBooking = await bookingDoc.populate('place');
+    const confirmationMessage = getBookingConfirmationMessage(populatedBooking);
+    sendBookingConfirmationMessage(populatedBooking);
+
+    res.json({ success: true, data: populatedBooking, confirmationMessage });
+}));
+
+app.get('/api/bookings', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const bookings = await Booking.find({ user: req.user.id }).populate('place').sort({ createdAt: -1 });
+    res.json({ success: true, data: bookings });
+}));
+
+app.get('/api/bookings/:id', requireDatabase, requireAuth, asyncHandler(async (req, res) => {
+    const booking = await Booking.findOne({ _id: req.params.id, user: req.user.id }).populate('place');
+
+    if (!booking) {
+        return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    res.json({ success: true, data: booking });
+}));
+
+app.use((err, req, res, next) => {
+    console.error(err);
+    if (res.headersSent) return next(err);
+    res.status(err.status || 500).json({
+        success: false,
+        message: err.message || 'Internal Server Error',
     });
 });
 
-// Get place by ID route
-app.get('/api/places/:id', async (req, res) => {
-    const { id } = req.params;
-    res.json(await Place.findById(id));
-});
-
-// Update place route
-app.put('/api/places', async (req, res) => {
-    const { token } = req.cookies;
-
-    const { id, title, address, addPhotos, perks,
-        extraInfo, checkInTime, checkOutTime,
-        maxGuest, description, price } = req.body;
-
-
-    jwt.verify(token, process.env.JWT_SECRET_TOKEN, {}, async (err, cookieData) => {
-        const placeDoc = await Place.findById(id);
-
-        if (err) {
-            throw err;
-        }
-
-        if (cookieData.id === placeDoc.owner.toString()) {
-            placeDoc.set({
-                title: title,
-                address: address,
-                photos: addPhotos,
-                description: description,
-                perks: perks,
-                extraInfo: extraInfo,
-                checkIn: checkInTime,
-                checkOut: checkOutTime,
-                maxGuests: maxGuest,
-                price: price
-            });
-        }
-
-        await placeDoc.save();
-
-        res.json('ok');
-    });
-});
-
-
-
-app.get('/api/home-places', async (req, res) => {
-
+async function startServer() {
     try {
-        const { search = '', maxPrice, perk, sort = 'recommended' } = req.query;
-        const query = {};
-
-        if (search.trim()) {
-            const searchRegex = new RegExp(search.trim(), 'i');
-            query.$or = [
-                { title: searchRegex },
-                { address: searchRegex },
-                { description: searchRegex },
-            ];
-        }
-
-        if (maxPrice) {
-            query.price = { $lte: Number(maxPrice) };
-        }
-
-        if (perk && perk !== 'all') {
-            query.perks = perk;
-        }
-
-        const sortBy = sort === 'price-low'
-            ? { price: 1 }
-            : sort === 'price-high'
-                ? { price: -1 }
-                : { createdAt: -1, _id: -1 };
-
-        const allPlaces = await Place.find(query)
-            .sort(sortBy)
-            .limit(60)
-            .lean();
-        res.json({
-            success: true,
-            count: allPlaces.length,
-            places: allPlaces,
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-    }
-
-})
-
-/*
-app.post('/api/bookings', async (req, res) => {
-    const userData = await getUserDataFromReq(req);
-    try {
-        const data = await req.body;
-        const bookingDoc = await Booking.create({
-            place: data.place,
-            name: data.name,
-            user: userData.id,
-            checkIn: data.checkIn,
-            checkOut: data.checkOut,
-            phone: data.phone,
-            price: data.price,
-            numberOfGuests: data.numberOfGuests
-
-        })
-        console.log(bookingDoc)
-        res.json(bookingDoc);
-
-    } catch (error) {
-        res.json({
-            error: error.message,
-            success: false,
-        })
-    }
-
-})
-*/
-
-
-app.post('/api/bookings', async (req, res) => {
-    const userData = await getUserDataFromReq(req);
-    try {
-        const data = req.body;
-
-        // Define the base price per person per night
-        const basePrice = 8000; // Fixed charge per person per night
-        const nights = Math.ceil((new Date(data.checkOut) - new Date(data.checkIn)) / (1000 * 60 * 60 * 24));
-
-        // Calculate total price based on guests and nights
-        const totalPrice = basePrice * data.numberOfGuests * nights;
-
-        // Create booking
-        const bookingDoc = await Booking.create({
-            place: data.place,
-            name: data.name,
-            user: userData.id,
-            checkIn: data.checkIn,
-            checkOut: data.checkOut,
-            phone: data.phone,
-            price: totalPrice,
-            numberOfGuests: data.numberOfGuests
+        await connectDB();
+        const server = app.listen(port, () => {
+            console.log(`app is listening on ${port}`);
         });
 
-        console.log(bookingDoc);
-        res.json({ success: true, data: bookingDoc });
-    } catch (error) {
-        res.json({
-            error: error.message,
-            success: false,
+        server.on('error', (error) => {
+            if (error.code === 'EADDRINUSE') {
+                console.error(`Port ${port} is already in use. Stop the existing backend process or set another PORT in backend/.env.`);
+                process.exit(1);
+            }
+            throw error;
         });
-    }
-});
-
-
-
-
-
-app.get('/api/bookings', async (req, res) => {
-    try {
-       
-        // Verify JWT token and retrieve user data
-        const userData = await getUserDataFromReq(req);
-        
-        if (!userData) {
-            return res.status(401).json({ success: false, message: "User data not found. Please log in." });
-        }
-
-        // Find bookings for the user and populate the 'place' field
-        const bookings = await Booking.find({ user: userData.id }).populate('place');
-
-        res.json({ success: true, data: bookings });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error('Backend startup failed:', error.message);
+        process.exit(1);
     }
+}
 
-})
-
-
-// Start the server
-const port = process.env.PORT || 4000;
-
-app.listen(port, () => {
-    console.log(`app is listening on ${port}`);
-});
+startServer();
